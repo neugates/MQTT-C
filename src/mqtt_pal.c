@@ -292,28 +292,18 @@ ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int
 }
 
 #elif defined(MQTT_USE_BIO)
-#include <unistd.h>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
 ssize_t mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int flags) {
     size_t sent = 0;
-    int retry_times = 100000; // 10 seconds timeout
     while(sent < len) {
         int tmp = BIO_write(fd, (const char*)buf + sent, (int)(len - sent));
         if (tmp > 0) {
             sent += (size_t) tmp;
         } else if (tmp <= 0 && !BIO_should_retry(fd)) {
             return MQTT_ERROR_SOCKET_ERROR;
-        }
-        else {
-            if(0 == retry_times) {
-                return MQTT_ERROR_SOCKET_ERROR;
-            }
-
-            usleep(100);
-            retry_times--;
         }
     }
     
@@ -324,7 +314,6 @@ ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int
     const char* const start = (const char*)buf;
     char* bufptr = (char*)buf;
     int rv;
-    int retry_times = 100000; // 20 seconds timeout
     do {
         rv = BIO_read(fd, bufptr, (int)bufsz);
         if (rv > 0) {
@@ -334,14 +323,6 @@ ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int
         } else if (!BIO_should_retry(fd)) {
             /* an error occurred that wasn't "nothing to read". */
             return MQTT_ERROR_SOCKET_ERROR;
-        }
-        else {
-            if(0 == retry_times) {
-                return MQTT_ERROR_SOCKET_ERROR;
-            }
-
-            usleep(200);
-            retry_times--;
         }
     } while (!BIO_should_read(fd) && bufsz > 0);
 
